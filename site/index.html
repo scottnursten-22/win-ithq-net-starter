@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ITHQ · Tools that win</title>
+<meta name="description" content="Calculators, planners and business cases from ITHQ.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400;500&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{--deep:#064a55;--deepest:#01333b;--teal:#087d8d;--signal:#f46235;--ink:#212424;--mist:#eef5f6}
+*{box-sizing:border-box}body{margin:0;font:16px/1.55 "Lexend Deca",system-ui,sans-serif;color:var(--ink);background:#fff}
+header{background:linear-gradient(135deg,var(--deepest),var(--deep));color:#fff;padding:72px 24px 88px}
+.wrap{max-width:1080px;margin:0 auto}
+.eyebrow{font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:#9fd8de;margin:0 0 12px}
+h1{font:600 clamp(40px,6vw,72px)/1.02 Poppins,sans-serif;margin:0;letter-spacing:-.02em}
+h1 span{color:var(--signal)}
+.lead{max-width:560px;font-size:18px;color:#d6ecee;margin:20px 0 0}
+main{padding:0 24px 80px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-top:-40px}
+a.card{display:block;background:#fff;border:1px solid #d9e7e9;border-radius:24px;padding:28px;text-decoration:none;color:inherit;box-shadow:0 10px 30px rgba(1,51,59,.08);transition:transform .24s cubic-bezier(.32,.72,0,1),box-shadow .24s}
+a.card:hover,a.card:focus-visible{transform:translateY(-3px);box-shadow:0 16px 40px rgba(1,51,59,.14);outline:none}
+.tag{font-size:14px;color:var(--teal);margin:0 0 8px}.card h2{font:600 22px/1.2 Poppins,sans-serif;margin:0 0 8px}.card p{margin:0;color:#4b5557}
+.go{display:inline-block;margin-top:18px;color:var(--signal);font-weight:500}
+.empty{background:var(--mist);border-radius:24px;padding:32px;margin-top:-40px}
+footer{border-top:1px solid #e3eced;padding:24px;font-size:14px;color:#5b6567}footer a{color:var(--teal)}
+</style>
+</head>
+<body>
+<header><div class="wrap"><p class="eyebrow">ITHQ · win.ithq.net</p><h1>Tools that <span>win.</span></h1>
+<p class="lead">Calculators, planners and business cases. Built to answer the hard questions before they're asked.</p></div></header>
+<main><div class="wrap"><div id="tools" class="grid" aria-live="polite"></div></div></main>
+<footer><div class="wrap">ITHQ Ltd · <a href="https://ithq.pro">ithq.pro</a> · <a href="mailto:transform@ithq.pro">transform@ithq.pro</a> · 020 3997 7979</div></footer>
+<script>
+fetch('/catalogue.json',{cache:'no-store'}).then(r=>r.json()).then(({tools})=>{
+  const el=document.getElementById('tools');
+  if(!tools.length){el.className='empty';el.textContent='First tools landing shortly.';return}
+  el.innerHTML='';for(const t of tools){const a=document.createElement('a');a.className='card';a.href=t.url;
+    a.innerHTML='<p class="tag"></p><h2></h2><p></p><span class="go">Open tool →</span>';
+    a.querySelector('.tag').textContent=t.category||'Tool';a.querySelector('h2').textContent=t.title||t.slug;
+    a.querySelector('h2+p').textContent=t.summary||'';el.appendChild(a)}
+});
+</script>
+</body></html>

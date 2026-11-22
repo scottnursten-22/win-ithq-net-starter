@@ -1,0 +1,95 @@
+# win.ithq.net: Brain publishes, runners deploy.
+#
+# Flow
+#   1. Brain builds a tool bundle (.tar.gz + meta.json) and starts a pipeline on the
+#      protected `intake` branch with the inputs below.
+#   2. `import` downloads the bundle, verifies its SHA-256, unpacks it to
+#      site/<section>/<slug>/, rebuilds the catalogue, pushes publish/<slug> and opens an MR.
+#   3. The push to publish/<slug> deploys a Cloudflare preview.
+#   4. A Maintainer merges the MR; main deploys to production (win.ithq.net).
+spec:
+  inputs:
+    bundle_url:
+      default: ""
+    bundle_sha256:
+      default: ""
+      regex: ^([a-f0-9]{64})?$
+    slug:
+      default: ""
+      regex: ^([a-z0-9][a-z0-9-]{0,39})?$
+    section:
+      default: tools
+      options: [tools, clients]
+---
+default:
+  image: node:22-bookworm
+  tags: [win]            # the protected runner below
+
+variables:
+  CF_PROJECT: win-ithq                 # Cloudflare Pages project name
+  RELAY_HOST: "SET-ME"                 # Brain gives you this on the first publish
+  BUNDLE_URL: "$[[ inputs.bundle_url ]]"
+  BUNDLE_SHA256: "$[[ inputs.bundle_sha256 ]]"
+  SLUG: "$[[ inputs.slug ]]"
+  SECTION: "$[[ inputs.section ]]"
+
+stages: [import, deploy]
+
+import:
+  stage: import
+  rules:
+    - if: $CI_COMMIT_BRANCH == "intake" && $BUNDLE_URL
+  script:
+    - |
+      set -eu
+      case "$BUNDLE_URL" in
+        "https://$RELAY_HOST/"*) ;;
+        *) echo "Refusing bundle from an unapproved host"; exit 1 ;;
+      esac
+      test -n "$BUNDLE_SHA256" && test -n "$SLUG"
+      curl -fsSL --max-filesize 52428800 "$BUNDLE_URL" -o bundle.tgz
+      echo "$BUNDLE_SHA256  bundle.tgz" | sha256sum -c -
+      DEST="site/$SECTION/$SLUG"
+      BRANCH="publish/$SLUG"
+      git config user.name "ITHQ Brain"
+      git config user.email "brain-publisher@noreply.ithq.net"
+      git fetch origin main
+      git checkout -B "$BRANCH" origin/main
+      rm -rf "$DEST" && mkdir -p "$DEST"
+      tar -xzf bundle.tgz -C "$DEST" --no-same-owner --no-same-permissions
+      test -f "$DEST/index.html"
+      node scripts/build-catalogue.mjs
+      git add site
+      git commit -m "Publish $SECTION/$SLUG"
+      PUSH_URL=$(echo "$CI_REPOSITORY_URL" | sed "s#//[^@]*@#//publisher:${PUBLISH_TOKEN}@#")
+      git push --force "$PUSH_URL" "HEAD:$BRANCH" \
+        -o merge_request.create -o merge_request.target=main \
+        -o merge_request.remove_source_branch \
+        -o "merge_request.title=Publish $SECTION/$SLUG"
+
+.deploy: &deploy
+  stage: deploy
+  before_script:
+    - test -f site/index.html
+    - "! grep -rl 'artifact-assets.placeholder' site"   # export must have rewritten asset paths
+
+preview:
+  <<: *deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^publish\//
+  script:
+    - npx --yes wrangler@4 pages deploy site --project-name="$CF_PROJECT" --branch="$CI_COMMIT_REF_SLUG" --commit-hash="$CI_COMMIT_SHA" --commit-message="$CI_COMMIT_TITLE"
+  environment:
+    name: preview/$CI_COMMIT_REF_SLUG
+    url: https://$CI_COMMIT_REF_SLUG.$CF_PROJECT.pages.dev
+
+production:
+  <<: *deploy
+  resource_group: production
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - npx --yes wrangler@4 pages deploy site --project-name="$CF_PROJECT" --branch=main --commit-hash="$CI_COMMIT_SHA" --commit-message="$CI_COMMIT_TITLE"
+  environment:
+    name: production
+    url: https://win.ithq.net
